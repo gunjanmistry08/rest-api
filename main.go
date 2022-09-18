@@ -1,31 +1,54 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gunjanmistry08/rest-api/handlers"
 )
 
 func main() {
-	http.HandleFunc("/goodbye", func(rw http.ResponseWriter, r *http.Request) {
-		log.Println("Goodbye World")
-	})
 
-	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
-		log.Println("Running Hello Handler")
+	l := log.New(os.Stdout, "products-api ", log.LstdFlags)
 
-		b, err := ioutil.ReadAll(r.Body)
+	hh := handlers.NewHello(l)
+	gh := handlers.NewGoodbye(l)
+
+	sm := http.NewServeMux()
+	sm.Handle("/", hh)
+	sm.Handle("/goodbye", gh)
+
+	s := http.Server{
+		Addr:         ":9090",
+		Handler:      sm,
+		ErrorLog:     l,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	go func() {
+		l.Println("Starting server on port 9090")
+		err := s.ListenAndServe()
 		if err != nil {
-			log.Println("Error reading body", err)
-
-			http.Error(rw, "Unable to read request body", http.StatusBadRequest)
-			return
+			l.Printf("Error starting server: %s\n", err)
+			os.Exit(1)
 		}
-		fmt.Fprintf(rw, "Hello %s", b)
-	})
+	}()
 
-	log.Println("Starting Server")
-	err := http.ListenAndServe(":9090", nil)
-	log.Fatal(err)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	// kill signal cannot be trapped
+	// signal.Notify(c, os.Kill)
+	sig := <-c
+	log.Println("Got signal:", sig)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// idk y
+	_ = cancel
+	s.Shutdown(ctx)
 }

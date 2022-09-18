@@ -1,3 +1,3 @@
-module github.com/gunjanmistry08
+module github.com/gunjanmistry08/rest-api
 
 go 1.18
